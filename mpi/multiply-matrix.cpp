@@ -198,8 +198,6 @@ void run_primary(int heightA, int widthA, int heightB, int widthB) {
 }
 
 
-
-
 void run_secondary(int rank) {
   MPI_Status status;
 

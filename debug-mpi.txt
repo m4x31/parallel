@@ -1,6 +1,0 @@
-präsentation optional aber gewünscht, wenn es was gibt
-
-mindestens 4 prozesse
-
-
-mpiexec -n 2 ddd ./HelloMPI
