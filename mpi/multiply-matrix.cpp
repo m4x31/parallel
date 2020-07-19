@@ -57,7 +57,6 @@ int **build_matrix(MatrixDimension dim) {
 }
 
 void log_matrix(int **matrix, MatrixDimension dim) {
-
   string l = "";
   if(logg) {
     for (int i = 0; i < dim.height; ++i) {
@@ -72,7 +71,6 @@ void log_matrix(int **matrix, MatrixDimension dim) {
 }
 
 void mutiply_matrix(int** matrix_a, MatrixDimension dim_a, int** matrix_b, MatrixDimension dim_b, int** resultMatrix ) {
-
   for(int i =  0; i < dim_b.height; i++) {
     for(int j = 0; j < dim_b.width; j++) {
       int sum = 0;
@@ -99,18 +97,13 @@ vector<MatrixWithDimension*> split_matrices(int** matrix, MatrixDimension dim) {
 
   vector<MatrixWithDimension *> matrices;
 
-
-
   for(int i = 0; i < size; i++) {
 
     MatrixDimension d = MatrixDimension(matrix_edge_length, dim.width);
 
-
     int **m = build_matrix(d);
 
-
     for(int j = 0; j < matrix_edge_length; j++) {
-      
 
       for(int k = 0; k < dim.width; k++ ) {
 
@@ -132,6 +125,8 @@ void run_primary(int heightA, int widthA, int heightB, int widthB) {
   int size;
   MPI_Comm_size(MPI_COMM_WORLD, &size);
   size--;
+
+  int origHeightB = heightB;
 
   if ((heightB % size != 0) || heightB < size) {
     heightB = heightB + (size - (heightB % size));
@@ -179,13 +174,10 @@ void run_primary(int heightA, int widthA, int heightB, int widthB) {
 
     MPI_Recv(&(results_matrix[0][0]), results_dimension.height * results_dimension.width, MPI_INT, i + 1, TAG_MATRIX_RESULT_DATA, MPI_COMM_WORLD, &status);
 
-    // log_matrix(results_matrix, results_dimension);
   }
 
-  MatrixDimension result_dim = MatrixDimension(dim_b.height, dim_a.width);
+  MatrixDimension result_dim = MatrixDimension(origHeightB, widthA);
   int **result_matrix = build_matrix(result_dim);
-
-
 
   for (int i = 0; i < results.size(); i++) {
     MatrixDimension dim = results[i] -> dimension;
@@ -193,15 +185,15 @@ void run_primary(int heightA, int widthA, int heightB, int widthB) {
 
     for(int j = 0; j < dim.height; j++) {
       for(int k = 0; k < dim.width; k++) {
-        result_matrix[i * dim.height + j][k] = matrix[j][k];
+
+        if(i * dim.height + j < origHeightB)
+          result_matrix[i * dim.height + j][k] = matrix[j][k];
       }
     }
   }
 
-
   cout << "RESULT:" << endl;
   log_matrix(result_matrix, result_dim);
-
 }
 
 
@@ -233,7 +225,6 @@ void run_secondary(int rank) {
 }
 
 
-
 int main(int argc, char **argv) {
 
   int widthA = stoi(argv[1]);
@@ -241,12 +232,10 @@ int main(int argc, char **argv) {
 
   int widthB = stoi(argv[3]);
   int heightB = stoi(argv[4]);
- 
 
   if (argc > 5) {
     logg = true;
   }
-  
   
   int size, rank;
   MPI_Init(&argc, &argv);
@@ -264,7 +253,6 @@ int main(int argc, char **argv) {
     run_secondary(rank);
   }
   
-  // printf("SIZE = %d RANK = %d\n",size,rank);
   MPI_Finalize();
   return(0);
 }
