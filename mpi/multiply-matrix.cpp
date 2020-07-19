@@ -12,6 +12,8 @@ const int TAG_MATRIX_B_HEIGHT = 111;
 const int TAG_MATRIX_B_WIDTH = 112;
 const int TAG_MATRIX_B_DATA = 113;
 
+const int TAG_MATRIX_RESULT_DATA = 113;
+
 bool logg = false;
 
 class MatrixDimension {
@@ -135,52 +137,77 @@ void run_primary(int heightA, int widthA, int heightB, int widthB) {
     heightB = heightB + (size - (heightB % size));
   }
 
+  MatrixDimension dim_a = MatrixDimension(heightA, widthA);
+  MatrixDimension dim_b = MatrixDimension(heightB, widthB);
+  int** matrix_a = build_matrix(dim_a);
+  int** matrix_b = build_matrix(dim_b);
+
+  log_matrix(matrix_a, dim_a);
+  log_matrix(matrix_b, dim_b);
 
 
-  
-  MatrixDimension aDim = MatrixDimension(heightA, widthA);
-  MatrixDimension bDim = MatrixDimension(heightB, widthB);
-  MatrixDimension resultDim = MatrixDimension(bDim.height, aDim.width);
+  vector<MatrixWithDimension*> matrices = split_matrices(matrix_b, dim_b);
 
+  vector<MatrixWithDimension*> results;
 
+  for (int i = 0; i < matrices.size(); i++) {
+    MatrixDimension dim = MatrixDimension(matrices[i] -> dimension.height, widthA);
+    int **matrix = build_matrix(dim);
 
-  int** matrixA = build_matrix(aDim);
-  log_matrix(matrixA, aDim);
+    results.push_back(new MatrixWithDimension(matrix, dim));
+  }
 
-  int** matrixB = build_matrix(bDim);
-  log_matrix(matrixB, bDim);
-
-  int** matrixResult = build_matrix(resultDim);
-  log_matrix(matrixResult, resultDim);
-
-
-
-  vector<MatrixWithDimension*> matrices = split_matrices(matrixB, bDim);
 
   for(int i = 0; i < size; i++) {
 
-    MPI_Send(&(aDim.height), 1, MPI_INT, i+1, TAG_MATRIX_A_HEIGHT, MPI_COMM_WORLD);
-    MPI_Send(&(aDim.width), 1, MPI_INT, i+1, TAG_MATRIX_A_WIDTH, MPI_COMM_WORLD);
+    MPI_Status status;
 
-    int **matrixB = matrices[i] -> matrix;
-    MatrixDimension bDim = matrices[i] -> dimension;
+    MPI_Send(&(dim_a.height), 1, MPI_INT, i + 1, TAG_MATRIX_A_HEIGHT, MPI_COMM_WORLD);
+    MPI_Send(&(dim_a.width), 1, MPI_INT, i + 1, TAG_MATRIX_A_WIDTH, MPI_COMM_WORLD);
 
-    MPI_Send(&(matrices[i] -> dimension.height), 1, MPI_INT, i+1, TAG_MATRIX_B_HEIGHT, MPI_COMM_WORLD);
-    MPI_Send(&(matrices[i] -> dimension.width), 1, MPI_INT, i+1, TAG_MATRIX_B_WIDTH, MPI_COMM_WORLD);
+    int **matrix_b = matrices[i] -> matrix;
+    MatrixDimension dim_b = matrices[i] -> dimension;
 
-    MPI_Send(&(matrixA[0][0]), aDim.width*aDim.height, MPI_INT, i+1, TAG_MATRIX_A_DATA, MPI_COMM_WORLD);
-    MPI_Send(&(matrixB[0][0]), bDim.height*bDim.width, MPI_INT, i+1, TAG_MATRIX_B_DATA, MPI_COMM_WORLD);
+    MPI_Send(&(matrices[i] -> dimension.height), 1, MPI_INT, i + 1, TAG_MATRIX_B_HEIGHT, MPI_COMM_WORLD);
+    MPI_Send(&(matrices[i] -> dimension.width), 1, MPI_INT, i + 1, TAG_MATRIX_B_WIDTH, MPI_COMM_WORLD);
 
+    MPI_Send(&(matrix_a[0][0]), dim_a.width*dim_a.height, MPI_INT, i + 1, TAG_MATRIX_A_DATA, MPI_COMM_WORLD);
+    MPI_Send(&(matrix_b[0][0]), dim_b.height*dim_b.width, MPI_INT, i + 1, TAG_MATRIX_B_DATA, MPI_COMM_WORLD);
 
+    int **results_matrix = results[i] -> matrix;
+    MatrixDimension results_dimension = results[i] -> dimension;
+
+    MPI_Recv(&(results_matrix[0][0]), results_dimension.height * results_dimension.width, MPI_INT, i + 1, TAG_MATRIX_RESULT_DATA, MPI_COMM_WORLD, &status);
+
+    // log_matrix(results_matrix, results_dimension);
   }
+
+  MatrixDimension result_dim = MatrixDimension(dim_b.height, dim_a.width);
+  int **result_matrix = build_matrix(result_dim);
+
+
+
+  for (int i = 0; i < results.size(); i++) {
+    MatrixDimension dim = results[i] -> dimension;
+    int **matrix = results[i] -> matrix;
+
+    for(int j = 0; j < dim.height; j++) {
+      for(int k = 0; k < dim.width; k++) {
+        result_matrix[i * dim.height + j][k] = matrix[j][k];
+      }
+    }
+  }
+
+
+  cout << "RESULT:" << endl;
+  log_matrix(result_matrix, result_dim);
+
 }
 
 
 
 
 void run_secondary(int rank) {
-
-
   MPI_Status status;
 
   MatrixDimension dim_a  = MatrixDimension(0,0);
@@ -191,24 +218,18 @@ void run_secondary(int rank) {
   MPI_Recv(&(dim_b.height), 1, MPI_INT, 0, TAG_MATRIX_B_HEIGHT, MPI_COMM_WORLD, &status);
   MPI_Recv(&(dim_b.width), 1, MPI_INT, 0, TAG_MATRIX_B_WIDTH, MPI_COMM_WORLD, &status);
 
-  int **matrixA = build_matrix(dim_a);
-  int **matrixB = build_matrix(dim_b);
+  int **matrix_a = build_matrix(dim_a);
+  int **matrix_b = build_matrix(dim_b);
 
-  MPI_Recv(&(matrixA[0][0]), dim_a.height * dim_a.width, MPI_INT, 0, TAG_MATRIX_A_DATA, MPI_COMM_WORLD, &status);
-  MPI_Recv(&(matrixB[0][0]), dim_b.height * dim_b.width, MPI_INT, 0, TAG_MATRIX_B_DATA, MPI_COMM_WORLD, &status);
+  MPI_Recv(&(matrix_a[0][0]), dim_a.height * dim_a.width, MPI_INT, 0, TAG_MATRIX_A_DATA, MPI_COMM_WORLD, &status);
+  MPI_Recv(&(matrix_b[0][0]), dim_b.height * dim_b.width, MPI_INT, 0, TAG_MATRIX_B_DATA, MPI_COMM_WORLD, &status);
 
-  log_matrix(matrixA, dim_a);
-  log_matrix(matrixB, dim_b);
+  MatrixDimension dim_result = MatrixDimension(dim_b.height, dim_a.width);
+  int **resultMatrix = build_matrix(dim_result);
 
-  MatrixDimension resultDimension = MatrixDimension(dim_b.height, dim_a.width);
-  int **resultMatrix = build_matrix(resultDimension);
+  mutiply_matrix(matrix_a, dim_a, matrix_b, dim_b, resultMatrix);
 
-  mutiply_matrix(matrixA, dim_a, matrixB, dim_b, resultMatrix);
-  
-  cout << "secondary #" << rank << " result" << endl;
-  log_matrix(resultMatrix, resultDimension);
-  cout << "------------------------------" << endl;
-
+  MPI_Send(&(resultMatrix[0][0]), dim_result.width*dim_result.height, MPI_INT, 0, TAG_MATRIX_RESULT_DATA, MPI_COMM_WORLD);  
 }
 
 
