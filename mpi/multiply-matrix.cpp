@@ -16,6 +16,10 @@ const int TAG_MATRIX_RESULT_DATA = 113;
 
 bool logg = false;
 
+float genRandomFloat() {
+  return 1.0 / ((rand() % 999) + 1);
+}
+
 class MatrixDimension {
   public:
     int height, width;
@@ -28,35 +32,31 @@ class MatrixDimension {
 
 class MatrixWithDimension {
   public:
-    int** matrix = NULL;
+    float** matrix = NULL;
     MatrixDimension dimension = MatrixDimension(0,0);
 
-    MatrixWithDimension(int** m, MatrixDimension d) {
+    MatrixWithDimension(float** m, MatrixDimension d) {
       matrix = m;
       dimension = d;
     }
 };
 
-int ccc = 1;
-
-
-int **build_matrix(MatrixDimension dim) {
+float **build_matrix(MatrixDimension dim) {
   //manually reserve mem for easier mpi sending
 
-  int* row = (int *)malloc(dim.height * dim.width * sizeof(int));
-  int** matrix = (int **)malloc(dim.height * sizeof(int*));
+  float* row = (float *)malloc(dim.height * dim.width * sizeof(float));
+  float** matrix = (float **)malloc(dim.height * sizeof(float*));
   for (int i = 0; i< dim.height; i++) {
     matrix[i] = &(row[dim.width * i]);
     for(int j = 0; j < dim.width; j++) {
-      matrix[i][j] = ccc;
-      ccc++;
+      matrix[i][j] = genRandomFloat();
     }
   }
 
   return matrix;
 }
 
-void log_matrix(int **matrix, MatrixDimension dim) {
+void log_matrix(float **matrix, MatrixDimension dim) {
   string l = "";
   if(logg) {
     for (int i = 0; i < dim.height; ++i) {
@@ -70,10 +70,10 @@ void log_matrix(int **matrix, MatrixDimension dim) {
 
 }
 
-void mutiply_matrix(int** matrix_a, MatrixDimension dim_a, int** matrix_b, MatrixDimension dim_b, int** resultMatrix ) {
+void mutiply_matrix(float** matrix_a, MatrixDimension dim_a, float** matrix_b, MatrixDimension dim_b, float** resultMatrix ) {
   for(int i =  0; i < dim_b.height; i++) {
     for(int j = 0; j < dim_b.width; j++) {
-      int sum = 0;
+      float sum = 0;
 
       for(int k = 0; k < dim_b.width; k++) {
         sum = matrix_a[k][j] * matrix_b[i][k];
@@ -87,7 +87,7 @@ void mutiply_matrix(int** matrix_a, MatrixDimension dim_a, int** matrix_b, Matri
 
 
 
-vector<MatrixWithDimension*> split_matrices(int** matrix, MatrixDimension dim) {
+vector<MatrixWithDimension*> split_matrices(float** matrix, MatrixDimension dim) {
 
   int size;
   MPI_Comm_size(MPI_COMM_WORLD, &size);
@@ -101,7 +101,7 @@ vector<MatrixWithDimension*> split_matrices(int** matrix, MatrixDimension dim) {
 
     MatrixDimension d = MatrixDimension(matrix_edge_length, dim.width);
 
-    int **m = build_matrix(d);
+    float **m = build_matrix(d);
 
     for(int j = 0; j < matrix_edge_length; j++) {
 
@@ -134,8 +134,8 @@ void run_primary(int heightA, int widthA, int heightB, int widthB) {
 
   MatrixDimension dim_a = MatrixDimension(heightA, widthA);
   MatrixDimension dim_b = MatrixDimension(heightB, widthB);
-  int** matrix_a = build_matrix(dim_a);
-  int** matrix_b = build_matrix(dim_b);
+  float** matrix_a = build_matrix(dim_a);
+  float** matrix_b = build_matrix(dim_b);
 
   log_matrix(matrix_a, dim_a);
   log_matrix(matrix_b, dim_b);
@@ -147,7 +147,7 @@ void run_primary(int heightA, int widthA, int heightB, int widthB) {
 
   for (int i = 0; i < matrices.size(); i++) {
     MatrixDimension dim = MatrixDimension(matrices[i] -> dimension.height, widthA);
-    int **matrix = build_matrix(dim);
+    float **matrix = build_matrix(dim);
 
     results.push_back(new MatrixWithDimension(matrix, dim));
   }
@@ -160,7 +160,7 @@ void run_primary(int heightA, int widthA, int heightB, int widthB) {
     MPI_Send(&(dim_a.height), 1, MPI_INT, i + 1, TAG_MATRIX_A_HEIGHT, MPI_COMM_WORLD);
     MPI_Send(&(dim_a.width), 1, MPI_INT, i + 1, TAG_MATRIX_A_WIDTH, MPI_COMM_WORLD);
 
-    int **matrix_b = matrices[i] -> matrix;
+    float **matrix_b = matrices[i] -> matrix;
     MatrixDimension dim_b = matrices[i] -> dimension;
 
     MPI_Send(&(matrices[i] -> dimension.height), 1, MPI_INT, i + 1, TAG_MATRIX_B_HEIGHT, MPI_COMM_WORLD);
@@ -169,7 +169,7 @@ void run_primary(int heightA, int widthA, int heightB, int widthB) {
     MPI_Send(&(matrix_a[0][0]), dim_a.width*dim_a.height, MPI_INT, i + 1, TAG_MATRIX_A_DATA, MPI_COMM_WORLD);
     MPI_Send(&(matrix_b[0][0]), dim_b.height*dim_b.width, MPI_INT, i + 1, TAG_MATRIX_B_DATA, MPI_COMM_WORLD);
 
-    int **results_matrix = results[i] -> matrix;
+    float **results_matrix = results[i] -> matrix;
     MatrixDimension results_dimension = results[i] -> dimension;
 
     MPI_Recv(&(results_matrix[0][0]), results_dimension.height * results_dimension.width, MPI_INT, i + 1, TAG_MATRIX_RESULT_DATA, MPI_COMM_WORLD, &status);
@@ -177,11 +177,11 @@ void run_primary(int heightA, int widthA, int heightB, int widthB) {
   }
 
   MatrixDimension result_dim = MatrixDimension(origHeightB, widthA);
-  int **result_matrix = build_matrix(result_dim);
+  float **result_matrix = build_matrix(result_dim);
 
   for (int i = 0; i < results.size(); i++) {
     MatrixDimension dim = results[i] -> dimension;
-    int **matrix = results[i] -> matrix;
+    float **matrix = results[i] -> matrix;
 
     for(int j = 0; j < dim.height; j++) {
       for(int k = 0; k < dim.width; k++) {
@@ -193,6 +193,7 @@ void run_primary(int heightA, int widthA, int heightB, int widthB) {
   }
 
   cout << "RESULT:" << endl;
+  logg = true;
   log_matrix(result_matrix, result_dim);
 }
 
@@ -210,14 +211,14 @@ void run_secondary(int rank) {
   MPI_Recv(&(dim_b.height), 1, MPI_INT, 0, TAG_MATRIX_B_HEIGHT, MPI_COMM_WORLD, &status);
   MPI_Recv(&(dim_b.width), 1, MPI_INT, 0, TAG_MATRIX_B_WIDTH, MPI_COMM_WORLD, &status);
 
-  int **matrix_a = build_matrix(dim_a);
-  int **matrix_b = build_matrix(dim_b);
+  float **matrix_a = build_matrix(dim_a);
+  float **matrix_b = build_matrix(dim_b);
 
   MPI_Recv(&(matrix_a[0][0]), dim_a.height * dim_a.width, MPI_INT, 0, TAG_MATRIX_A_DATA, MPI_COMM_WORLD, &status);
   MPI_Recv(&(matrix_b[0][0]), dim_b.height * dim_b.width, MPI_INT, 0, TAG_MATRIX_B_DATA, MPI_COMM_WORLD, &status);
 
   MatrixDimension dim_result = MatrixDimension(dim_b.height, dim_a.width);
-  int **resultMatrix = build_matrix(dim_result);
+  float **resultMatrix = build_matrix(dim_result);
 
   mutiply_matrix(matrix_a, dim_a, matrix_b, dim_b, resultMatrix);
 
